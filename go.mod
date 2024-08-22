@@ -1,4 +1,4 @@
-module app
+module roundgun
 
 go 1.22.1
 
