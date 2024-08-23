@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"math"
 	"os"
 
 	library "roundgun/lib"
@@ -9,6 +10,12 @@ import (
 	"github.com/veandco/go-sdl2/gfx"
 	"github.com/veandco/go-sdl2/sdl"
 )
+
+type Built struct {
+	Sprite *Sprite
+	Dir float64
+	Count int
+}
 
 type Sprite struct {
 	Color [4]int
@@ -68,10 +75,21 @@ func main() {
 	step := 0
 	cameraPos := [2]int{0, 0}
 	player := newSprite([4]int{255, 255, 255, 255}, 40, [2]int{400, 250}) // 플레이어 초기 위치 중앙
+	mousePos := [2]int{0, 0}
+	bullets := []Built{}
+	var deltaCountBullets float32 = 0
 
+
+	lastTime := sdl.GetTicks64()
 	// 메인 루프
 	running := true
 	for running {
+		// 현재 프레임 시간
+		currentTime := sdl.GetTicks64()
+		// DeltaTime 계산 (초 단위로 변환)
+		deltaTime := float32(currentTime-lastTime) / 1000.0
+		lastTime = currentTime
+
 		for event := sdl.PollEvent(); event != nil; event = sdl.PollEvent() {
 			switch e := event.(type) {
 			case *sdl.QuitEvent:
@@ -87,6 +105,9 @@ func main() {
 					clickPos[1] = int(e.Y) + cameraPos[1]
 					step = 0 // 이동 단계를 초기화
 				}
+			case *sdl.MouseMotionEvent:
+				mousePos[0] = int(e.X)
+				mousePos[1] = int(e.Y)
 			case *sdl.KeyboardEvent:
 				if e.State == sdl.PRESSED && e.Keysym.Sym == sdl.K_UP {
 					cameraPos[1] += 50
@@ -135,6 +156,40 @@ func main() {
 				clickRadius = 0
 			}
 		}
+
+		// 마우스의 월드 좌표 구하기
+		mouseWorldPos := [2]int{mousePos[0] + cameraPos[0], mousePos[1] + cameraPos[1]}
+
+		// 마우스와 플레이어 사이의 각도 계산
+		mouseDir := math.Atan2(float64(mouseWorldPos[1])-float64(player.DfPos[1]), float64(mouseWorldPos[0])-float64(player.DfPos[0]))
+
+
+		// 속도를 정의합니다. 원하는 총알 속도에 따라 값을 조정할 수 있습니다.
+		bulletSpeed := 5.0
+		
+		// 총알 생성
+		deltaCountBullets += deltaTime
+
+		if (deltaCountBullets >= 1){
+			bullets = append(bullets, Built{Sprite: newSprite([4]int{100, 100, 100, 255}, 10, player.DfPos), Dir: mouseDir})
+			deltaCountBullets = 0
+		}
+		
+		for i := 0; i < len(bullets); i++ {
+			spriteDraw(bullets[i].Sprite, renderer, cameraPos)
+		
+			// 총알의 x, y 위치를 각도에 따라 이동시킵니다.
+			bullets[i].Sprite.DfPos[0] += int(bulletSpeed * math.Cos(bullets[i].Dir))
+			bullets[i].Sprite.DfPos[1] += int(bulletSpeed * math.Sin(bullets[i].Dir))
+			bullets[i].Count += 1
+			if (bullets[i].Count >= 200){
+				bullets = append(bullets[:i], bullets[i+1:]...)
+			}
+		
+			// 디버그 출력
+			println(bullets)
+		}
+		
 
 		// 카메라가 플레이어를 부드럽게 따라가게 함
 		cameraSpeed := 0.1 // 카메라가 플레이어를 따라가는 속도 (0.0 ~ 1.0 사이의 값)
